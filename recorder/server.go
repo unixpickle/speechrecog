@@ -52,12 +52,14 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		IndexTemplate.Execute(w, idx)
 	case "/recording.wav":
 		soundFile, err := s.openSoundFile(r)
+		defer soundFile.Close()
 		if err != nil {
 			http.NotFound(w, r)
 		} else {
 			defer soundFile.Close()
 			w.Header().Set("Content-Type", "audio/x-wav")
-			io.Copy(w, soundFile)
+			w.Header().Set("Content-Disposition", "inline; filename=recording.wav")
+			http.ServeContent(w, r, "recording.wav", time.Now(), soundFile)
 		}
 	case "/style.css":
 		contents, _ := Asset(StylePath)
@@ -79,7 +81,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (s *Server) openSoundFile(r *http.Request) (io.ReadCloser, error) {
+func (s *Server) openSoundFile(r *http.Request) (*os.File, error) {
 	query := r.URL.Query()
 	id := query.Get("id")
 
