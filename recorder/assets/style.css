@@ -3,6 +3,11 @@ body {
   font-family: sans-serif;
 }
 
+audio {
+  display: inline-block;
+  width: 210px;
+}
+
 #samples {
   border: none;
   margin: auto;
@@ -14,10 +19,15 @@ body {
 
 #samples td {
   padding: 5px;
+  max-width: 300px;
 }
 
 #samples td:first-child {
   min-width: 200px;
+}
+
+#samples td:nth-child(2) {
+  text-align: center;
 }
 
 #samples tr:nth-child(even) {

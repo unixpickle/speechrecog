@@ -3,6 +3,7 @@
   var AJAX_DONE = 4;
   var HTTP_OK = 200;
   var ENTER_KEYCODE = 13;
+  var ESCAPE_KEYCODE = 27;
 
   var addButton = null;
   var currentRecorder = null;
@@ -11,6 +12,13 @@
   function initialize() {
     addButton = document.getElementById('add-button');
     addButton.addEventListener('click', addLabel);
+
+    window.addEventListener('keyup', function(e) {
+      if (e.which === ESCAPE_KEYCODE) {
+        e.preventDefault();
+        cancelRecording();
+      }
+    });
 
     document.getElementById('add-content').addEventListener('keyup', function(e) {
       e.preventDefault();
