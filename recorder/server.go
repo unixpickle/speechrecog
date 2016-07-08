@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/base64"
 	"encoding/hex"
 	"errors"
 	"html/template"
@@ -8,6 +9,7 @@ import (
 	"math/rand"
 	"net/http"
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -17,9 +19,9 @@ import (
 )
 
 const (
-	IndexPath  = "assets/index.html"
-	StylePath  = "assets/style.css"
-	ScriptPath = "assets/script.js"
+	AssetPrefix = "assets/"
+	IndexPath   = AssetPrefix + "index.html"
+	StylePath   = AssetPrefix + "style.css"
 )
 
 var (
@@ -61,8 +63,8 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		contents, _ := Asset(StylePath)
 		w.Header().Set("Content-Type", "text/css")
 		w.Write(contents)
-	case "/script.js":
-		contents, _ := Asset(ScriptPath)
+	case "/script.js", "/jswav.js":
+		contents, _ := Asset(path.Join(AssetPrefix, r.URL.Path))
 		w.Header().Set("Content-Type", "application/javascript")
 		w.Write(contents)
 	case "/add":
@@ -70,6 +72,8 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		writeAPIResponse(w, msg, err)
 	case "/delete":
 		writeAPIResponse(w, "success", s.deleteEntry(r))
+	case "/upload":
+		writeAPIResponse(w, "success", s.upload(r))
 	default:
 		http.NotFound(w, r)
 	}
@@ -141,6 +145,51 @@ func (s *Server) deleteEntry(r *http.Request) error {
 	}
 
 	return errors.New("ID not found: " + id)
+}
+
+func (s *Server) upload(r *http.Request) error {
+	query := r.URL.Query()
+	id := query.Get("id")
+
+	if id == "" {
+		return errors.New("missing id field")
+	}
+
+	destName := randomID()
+	destPath := filepath.Join(s.Index.DirPath, destName)
+
+	f, err := os.Create(destPath)
+	defer f.Close()
+	if err != nil {
+		return err
+	}
+	b64 := base64.NewDecoder(base64.StdEncoding, r.Body)
+	if _, err := io.Copy(f, b64); err != nil {
+		os.Remove(destPath)
+		return err
+	}
+
+	s.DataLock.Lock()
+	defer s.DataLock.Unlock()
+
+	for i, x := range s.Index.Samples {
+		if x.ID == id {
+			oldFile := s.Index.Samples[i].File
+			if oldFile != "" {
+				os.Remove(destPath)
+				return errors.New("entry already has a recording")
+			}
+			s.Index.Samples[i].File = destName
+			if err := s.Index.Save(); err != nil {
+				s.Index.Samples[i].File = ""
+				os.Remove(destPath)
+			}
+			return nil
+		}
+	}
+
+	os.Remove(destPath)
+	return errors.New("unknown id: " + id)
 }
 
 func writeAPIResponse(w http.ResponseWriter, successMsg string, err error) {
