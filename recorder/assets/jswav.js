@@ -61,8 +61,7 @@
   };
 
   Recorder.prototype._handleStream = function() {
-    var AudioContext = (window.AudioContext || window.webkitAudioContext);
-    var context = new AudioContext();
+    var context = getAudioContext();
     var source = context.createMediaStreamSource(this._stream);
     var wavNode = new window.jswav.WavNode(context, this.channels);
     source.connect(wavNode.node);
@@ -108,6 +107,17 @@
         }
       };
     }
+  }
+
+  var reusableAudioContext = null;
+
+  function getAudioContext() {
+    if (reusableAudioContext !== null) {
+      return reusableAudioContext;
+    }
+    var AudioContext = (window.AudioContext || window.webkitAudioContext);
+    reusableAudioContext = new AudioContext();
+    return reusableAudioContext;
   }
 
   if (!window.jswav) {
