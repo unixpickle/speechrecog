@@ -13,7 +13,9 @@ import (
 )
 
 const (
-	IndexPath = "assets/index.html"
+	IndexPath  = "assets/index.html"
+	StylePath  = "assets/style.css"
+	ScriptPath = "assets/script.js"
 )
 
 var (
@@ -50,6 +52,14 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("Content-Type", "audio/x-wav")
 			io.Copy(w, soundFile)
 		}
+	case "/style.css":
+		contents, _ := Asset(StylePath)
+		w.Header().Set("Content-Type", "text/css")
+		w.Write(contents)
+	case "/script.js":
+		contents, _ := Asset(ScriptPath)
+		w.Header().Set("Content-Type", "application/javascript")
+		w.Write(contents)
 	default:
 		http.NotFound(w, r)
 	}
