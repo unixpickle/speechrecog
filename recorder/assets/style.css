@@ -1,3 +1,36 @@
+body {
+  text-align: center;
+  font-family: sans-serif;
+}
+
 #samples {
+  border: none;
   margin: auto;
+}
+
+#samples, #add-container {
+  text-align: left;
+}
+
+#samples td {
+  padding: 5px;
+}
+
+#samples td:first-child {
+  min-width: 200px;
+}
+
+#samples tr:nth-child(even) {
+  background-color: #edf1f8;
+}
+
+#samples tr:nth-child(odd) {
+  background-color: #dae4f0;
+}
+
+#add-container {
+  margin-top: 10px;
+  padding: 10px;
+  background-color: #f0f0f0;
+  display: inline-block;
 }

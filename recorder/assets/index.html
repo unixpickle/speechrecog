@@ -8,24 +8,34 @@
     <script src="/script.js"></script>
   </head>
   <body>
-    <table id="samples">
-      {{range .Samples}}
-      <tr label-id="{{.ID}}">
-        <td> {{- .Label -}} </td>
-        {{if .File}}
-        <td>
-          <audio controls>
-            <source src="/recording.wav?id={{.ID}}" type="audio/x-wav">
-            Your browser does not support the audio element.
-          </audio>
-        </td>
-        {{else}}
-        <td>
-          <button class="record-button">Record</button>
-        </td>
+    <table id="samples" cellspacing="0" cellpadding="0">
+      <tbody id="samples-body">
+        {{range .Samples}}
+        <tr label-id="{{.ID}}">
+          <td> {{- .Label -}} </td>
+          {{if .File}}
+          <td>
+            <audio controls>
+              <source src="/recording.wav?id={{.ID}}" type="audio/x-wav">
+              Your browser does not support the audio element.
+            </audio>
+          </td>
+          {{else}}
+          <td>
+            <button class="record-button">Record</button>
+          </td>
+          {{end}}
+          <td>
+            <button class="delete-button">Delete</button>
+          </td>
+        </tr>
         {{end}}
-      </tr>
-      {{end}}
+      </tbody>
     </table>
+    <div id="add-container">
+      <label>Add label:</label>
+      <input id="add-content">
+      <button id="add-button">Add</button>
+    </div>
   </body>
 </html>
