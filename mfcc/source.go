@@ -17,6 +17,11 @@ type Source interface {
 // set to 100, then samples 0-199 from the wrapped
 // source are returned, followed by samples 100-299,
 // followed by 200-399, etc.
+//
+// The Step must not be greater than the Size.
+//
+// The last frame returned by a Framer may be partial,
+// i.e. it may be less than Size samples.
 type Framer struct {
 	S Source
 
@@ -61,6 +66,7 @@ func (f *Framer) readSample() (sample float64, noSample bool, err error) {
 			n, err = f.S.ReadSamples(s[:])
 			if n == 1 {
 				sample = s[0]
+				break
 			} else if err != nil {
 				return 0, true, err
 			}
