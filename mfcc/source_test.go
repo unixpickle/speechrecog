@@ -28,7 +28,7 @@ func TestFramer(t *testing.T) {
 	var data [11]float64
 
 	source := sliceSource{vec: []float64{1, -1, 0.5, 0.3, 0.2, 1, 0.5}, buffSize: 2}
-	framedSource := Framer{S: &source, Size: 3, Step: 2}
+	framedSource := framer{S: &source, Size: 3, Step: 2}
 
 	n, err := framedSource.ReadSamples(data[:])
 	if err != io.EOF {
@@ -42,7 +42,7 @@ func TestFramer(t *testing.T) {
 	}
 
 	source = sliceSource{vec: []float64{1, -1, 0.5, 0.3, 0.2, 1}, buffSize: 2}
-	framedSource = Framer{S: &source, Size: 3, Step: 3}
+	framedSource = framer{S: &source, Size: 3, Step: 3}
 
 	n, err = framedSource.ReadSamples(data[:])
 	if err != io.EOF {
@@ -56,11 +56,11 @@ func TestFramer(t *testing.T) {
 	}
 }
 
-func TestRateChanger(t *testing.T) {
+func TestrateChanger(t *testing.T) {
 	var data [20]float64
 
 	source := sliceSource{vec: []float64{1, -1, 0.5, 0.3, 0.2, 1, 0.5}, buffSize: 2}
-	changer := RateChanger{S: &source, Ratio: 2 + 1e-8}
+	changer := rateChanger{S: &source, Ratio: 2 + 1e-8}
 
 	n, err := changer.ReadSamples(data[:])
 	if err != io.EOF {
@@ -74,7 +74,7 @@ func TestRateChanger(t *testing.T) {
 	}
 
 	source = sliceSource{vec: []float64{1, -1, 0.5, 0.3, 0.2, 1, 0.5}, buffSize: 2}
-	changer = RateChanger{S: &source, Ratio: 0.5 + 1e-8}
+	changer = rateChanger{S: &source, Ratio: 0.5 + 1e-8}
 
 	n, err = changer.ReadSamples(data[:])
 	if err != io.EOF {

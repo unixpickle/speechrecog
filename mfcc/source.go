@@ -10,7 +10,7 @@ type Source interface {
 	ReadSamples(s []float64) (n int, err error)
 }
 
-// A Framer is a Source that wraps another Source and
+// A framer is a Source that wraps another Source and
 // generates overlapping windows of sample data.
 //
 // For instance, if Size is set to 200 and Step is
@@ -20,9 +20,9 @@ type Source interface {
 //
 // The Step must not be greater than the Size.
 //
-// The last frame returned by a Framer may be partial,
+// The last frame returned by a framer may be partial,
 // i.e. it may be less than Size samples.
-type Framer struct {
+type framer struct {
 	S Source
 
 	Size int
@@ -34,7 +34,7 @@ type Framer struct {
 	outWindowProgress int
 }
 
-func (f *Framer) ReadSamples(s []float64) (n int, err error) {
+func (f *framer) ReadSamples(s []float64) (n int, err error) {
 	if f.doneError != nil {
 		return 0, f.doneError
 	}
@@ -55,7 +55,7 @@ func (f *Framer) ReadSamples(s []float64) (n int, err error) {
 	return
 }
 
-func (f *Framer) readSample() (sample float64, noSample bool, err error) {
+func (f *framer) readSample() (sample float64, noSample bool, err error) {
 	if len(f.curCache) > 0 {
 		sample = f.curCache[0]
 		f.curCache = f.curCache[1:]
@@ -84,13 +84,13 @@ func (f *Framer) readSample() (sample float64, noSample bool, err error) {
 	return
 }
 
-// A RateChanger changes the sample rate of a Source.
+// A rateChanger changes the sample rate of a Source.
 //
 // The Ratio argument determines the ratio of the new
 // sample rate to the old one.
 // For example, a Ratio of 2.5 would turn the sample
 // rate 22050 to the rate 55125.
-type RateChanger struct {
+type rateChanger struct {
 	S     Source
 	Ratio float64
 
@@ -101,7 +101,7 @@ type RateChanger struct {
 	midpart    float64
 }
 
-func (r *RateChanger) ReadSamples(s []float64) (n int, err error) {
+func (r *rateChanger) ReadSamples(s []float64) (n int, err error) {
 	if r.doneError != nil {
 		return 0, r.doneError
 	}
@@ -122,7 +122,7 @@ func (r *RateChanger) ReadSamples(s []float64) (n int, err error) {
 	return
 }
 
-func (r *RateChanger) readSample() (sample float64, noSample bool, err error) {
+func (r *rateChanger) readSample() (sample float64, noSample bool, err error) {
 	if !r.started {
 		noSample, err = r.start()
 		if noSample {
@@ -146,7 +146,7 @@ func (r *RateChanger) readSample() (sample float64, noSample bool, err error) {
 	return
 }
 
-func (r *RateChanger) start() (noSample bool, err error) {
+func (r *rateChanger) start() (noSample bool, err error) {
 	var samples [2]float64
 	var n, gotten int
 	for gotten < 2 {
@@ -165,7 +165,7 @@ func (r *RateChanger) start() (noSample bool, err error) {
 	return
 }
 
-func (r *RateChanger) readNext() (noSample bool, err error) {
+func (r *rateChanger) readNext() (noSample bool, err error) {
 	var samples [1]float64
 	var n int
 	for {
