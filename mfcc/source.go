@@ -1,5 +1,3 @@
-// Package mfcc can compute Mel-frequency cepstrum
-// coefficients from raw sample data.
 package mfcc
 
 // A Source is a place from which audio sample data can
