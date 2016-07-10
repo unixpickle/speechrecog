@@ -81,9 +81,9 @@ type CoeffSource interface {
 // MFCC generates a CoeffSource that computes the MFCCs
 // of the given Source.
 //
-// After the Source returns its first error, the last
-// window will be padded with zeroes and used to compute
-// a final batch of MFCCs before returning the error.
+// After source returns its first error, the last window
+// will be padded with zeroes and used to compute a final
+// batch of MFCCs before returning the error.
 func MFCC(source Source, sampleRate int, options *Options) CoeffSource {
 	if options == nil {
 		options = &Options{}
