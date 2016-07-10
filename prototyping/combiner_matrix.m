@@ -4,12 +4,8 @@ function [mat] = combiner_matrix(n)
   mat(1, n/2+1) = 1;
   for i = 2:(n/4)
     mat(i, i) = 1;
-    if i == 0
-      mat(i, i+n/2) = 1;
-    else
-      mat(i, i+n/2) = cos(2*pi/n*(i-1));
-      mat(i, i+n/2+n/4) = -sin(2*pi/n*(i-1));
-    end
+    mat(i, i+n/2) = cos(2*pi/n*(i-1));
+    mat(i, i+n/2+n/4) = -sin(2*pi/n*(i-1));
   end
   mat(n/4+1, n/4+1) = 1;
   for i = 1:(n/4)
