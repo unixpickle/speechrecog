@@ -36,6 +36,31 @@ func TestFFT(t *testing.T) {
 	}
 }
 
+func TestFFTPower(t *testing.T) {
+	inputs := [][]float64{
+		[]float64{0.123},
+		[]float64{1, -2, 3, -2},
+		[]float64{0.517450, 0.591873, 0.104983, -0.512010, -0.037091, 0.203369,
+			0.452477, -0.452457, 0.873007, 0.134188, -0.515357, 0.864060, 0.838039, 0.618038,
+			-0.729226, 0.949877},
+	}
+	outputs := [][]float64{
+		[]float64{0.015129},
+		[]float64{0, 1, 16},
+		[]float64{0.951220, 0.185734, 0.030175, 0.408956, 0.548320,
+			0.493129, 0.019275, 0.640944, 0.049802},
+	}
+	for i, input := range inputs {
+		actual := fft(input).powerSpectrum()
+		expected := outputs[i]
+		if len(actual) != len(expected) {
+			t.Errorf("%d: expected len %d but got len %d", i, len(expected), len(actual))
+		} else if !slicesClose(actual, expected) {
+			t.Errorf("%d: expected %v but got %v", i, expected, actual)
+		}
+	}
+}
+
 func BenchmarkFFT(b *testing.B) {
 	rand.Seed(123)
 	inputVec := make([]float64, fftBenchSize)

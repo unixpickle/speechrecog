@@ -39,6 +39,18 @@ func fft(signal []float64) fftBins {
 	return destructiveFFT(signalCopy, temp, sines, cosines, 0)
 }
 
+func (f fftBins) powerSpectrum() []float64 {
+	scaleFactor := 1 / float64(len(f.Cos)+len(f.Sin))
+	n := len(f.Cos)
+	res := make([]float64, n)
+	res[0] = f.Cos[0] * f.Cos[0] * scaleFactor
+	res[n-1] = f.Cos[n-1] * f.Cos[n-1] * scaleFactor
+	for i, s := range f.Sin {
+		res[i+1] = (s*s + f.Cos[i+1]*f.Cos[i+1]) * scaleFactor
+	}
+	return res
+}
+
 func destructiveFFT(signal []float64, temp []float64, sines, cosines []float64,
 	depth uint) fftBins {
 	n := len(signal)
