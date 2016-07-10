@@ -48,6 +48,17 @@ func destructiveFFT(signal []float64, temp []float64, sines, cosines []float64,
 		return fftBins{
 			Cos: []float64{signal[0] + signal[1], signal[0] - signal[1]},
 		}
+	} else if n == 4 {
+		return fftBins{
+			Cos: []float64{
+				signal[0] + signal[1] + signal[2] + signal[3],
+				signal[0] - signal[2],
+				signal[0] - signal[1] + signal[2] - signal[3],
+			},
+			Sin: []float64{
+				signal[1] - signal[3],
+			},
+		}
 	} else if n&1 != 0 {
 		panic("input must be a power of 2")
 	}
