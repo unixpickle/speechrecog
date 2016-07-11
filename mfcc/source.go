@@ -1,11 +1,32 @@
 package mfcc
 
+import "io"
+
 // A Source is a place from which audio sample data can
 // be read.
 // This interface is very similar to io.Reader, except
 // that it deals with samples instead of bytes.
 type Source interface {
 	ReadSamples(s []float64) (n int, err error)
+}
+
+// A SliceSource is a Source which returns pre-determined
+// samples from a slice.
+type SliceSource struct {
+	Slice []float64
+
+	// Offset is the current offset into the slice.
+	// This will be increased as samples are read.
+	Offset int
+}
+
+func (s *SliceSource) ReadSamples(out []float64) (n int, err error) {
+	n = copy(out, s.Slice[s.Offset:])
+	s.Offset += n
+	if n < len(out) {
+		err = io.EOF
+	}
+	return
 }
 
 // A framer is a Source that wraps another Source and
