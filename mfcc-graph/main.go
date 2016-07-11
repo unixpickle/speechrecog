@@ -6,6 +6,7 @@ import (
 	"io/ioutil"
 	"os"
 	"strconv"
+	"time"
 
 	"github.com/unixpickle/speechrecog/mfcc"
 	"github.com/unixpickle/wav"
@@ -23,12 +24,21 @@ var CepstrumColors = []string{
 }
 
 func main() {
-	if len(os.Args) != 3 {
-		fmt.Fprintln(os.Stderr, "Usage: mfcc-graph <sound.wav> <output.html>")
+	if len(os.Args) != 3 && len(os.Args) != 4 {
+		fmt.Fprintln(os.Stderr, "Usage: mfcc-graph <sound.wav> <output.html> [--velocity]")
 		os.Exit(1)
 	}
 
-	coeffs, err := readCoeffs(os.Args[1])
+	var getVelocity bool
+	if len(os.Args) == 4 {
+		if os.Args[3] != "--velocity" {
+			fmt.Fprintln(os.Stderr, "Unexpected argument:", os.Args[3])
+			os.Exit(1)
+		}
+		getVelocity = true
+	}
+
+	coeffs, err := readCoeffs(os.Args[1], getVelocity)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "Failed to read MFCCs:", err)
 		os.Exit(1)
@@ -42,7 +52,7 @@ func main() {
 	}
 }
 
-func readCoeffs(file string) ([][]float64, error) {
+func readCoeffs(file string, velocity bool) ([][]float64, error) {
 	sound, err := wav.ReadSoundFile(os.Args[1])
 	if err != nil {
 		return nil, err
@@ -55,12 +65,21 @@ func readCoeffs(file string) ([][]float64, error) {
 		}
 	}
 
-	mfccSource := mfcc.MFCC(&mfcc.SliceSource{Slice: audioData}, sound.SampleRate(), nil)
+	mfccSource := mfcc.MFCC(&mfcc.SliceSource{Slice: audioData}, sound.SampleRate(),
+		&mfcc.Options{Window: time.Millisecond * 20, Overlap: time.Millisecond * 10})
+	if velocity {
+		mfccSource = mfcc.AddVelocities(mfccSource)
+	}
+
 	var coeffs [][]float64
 	for {
 		c, err := mfccSource.NextCoeffs()
 		if err == nil {
-			coeffs = append(coeffs, c)
+			if velocity {
+				coeffs = append(coeffs, c[len(c)/2:])
+			} else {
+				coeffs = append(coeffs, c)
+			}
 		} else {
 			break
 		}
