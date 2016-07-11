@@ -146,7 +146,7 @@ func (c *coeffChan) NextCoeffs() ([]float64, error) {
 	buf := make([]float64, c.windowSize)
 	var have int
 	for have < len(buf) && c.doneError == nil {
-		n, err := c.windowedSource.ReadSamples(buf[:have])
+		n, err := c.windowedSource.ReadSamples(buf[have:])
 		if err != nil {
 			c.doneError = err
 		}
