@@ -1,6 +1,7 @@
 package ctc
 
 import (
+	"runtime"
 	"sync"
 
 	"github.com/unixpickle/autofunc"
@@ -10,7 +11,15 @@ import (
 
 // TotalCost returns total CTC cost of a network on
 // a batch of samples.
-func TotalCost(f rnn.SeqFunc, s sgd.SampleSet, maxGos, maxBatch int) float64 {
+//
+// The maxGos argument specifies the maximum number
+// of goroutines to run batches on simultaneously.
+// If it is 0, GOMAXPROCS is used.
+func TotalCost(f rnn.SeqFunc, s sgd.SampleSet, maxBatch, maxGos int) float64 {
+	if maxGos == 0 {
+		maxGos = runtime.GOMAXPROCS(0)
+	}
+
 	subBatches := make(chan sgd.SampleSet, s.Len()/maxBatch+1)
 	for i := 0; i < s.Len(); i += maxBatch {
 		bs := maxBatch
