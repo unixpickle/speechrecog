@@ -63,7 +63,8 @@ func LogLikelihood(seq []autofunc.Result, label []int) autofunc.Result {
 			for i := 3; i < len(label)*2+1; i += 2 {
 				positionSum := addProbabilities(addProbabilities(vectorEntry(last, i),
 					vectorEntry(last, i-1)), vectorEntry(last, i-2))
-				resParts[i] = mulProbabilities(vectorEntry(input, label[i]), positionSum)
+				labelIdx := (i - 1) / 2
+				resParts[i] = mulProbabilities(vectorEntry(input, label[labelIdx]), positionSum)
 			}
 			return autofunc.Concat(resParts...)
 		})
@@ -116,7 +117,8 @@ func LogLikelihoodR(seq []autofunc.RResult, label []int) autofunc.RResult {
 			for i := 3; i < len(label)*2+1; i += 2 {
 				positionSum := addProbabilitiesR(addProbabilitiesR(vectorEntryR(last, i),
 					vectorEntryR(last, i-1)), vectorEntryR(last, i-2))
-				resParts[i] = mulProbabilitiesR(vectorEntryR(input, label[i]), positionSum)
+				labelIdx := (i - 1) / 2
+				resParts[i] = mulProbabilitiesR(vectorEntryR(input, label[labelIdx]), positionSum)
 			}
 			return autofunc.ConcatR(resParts...)
 		})
