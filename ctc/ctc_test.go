@@ -12,6 +12,10 @@ import (
 const (
 	testSymbolCount = 5
 	testPrecision   = 1e-5
+
+	benchLabelLen    = 50
+	benchSeqLen      = 500
+	benchSymbolCount = 30
 )
 
 func TestLogLikelihoodOutputs(t *testing.T) {
@@ -58,6 +62,36 @@ func TestLogLikelihoodOutputs(t *testing.T) {
 			t.Errorf("LogLikelihoodR gave log(%e) but expected log(%e)",
 				rActual, expected)
 		}
+	}
+}
+
+func BenchmarkLogLikelihood(b *testing.B) {
+	label := make([]int, benchLabelLen)
+	for i := range label {
+		label[i] = rand.Intn(testSymbolCount)
+	}
+
+	resSeq := make([]autofunc.Result, benchSeqLen)
+	for i := range resSeq {
+		probSeq := make(linalg.Vector, benchSymbolCount+1)
+		var probSum float64
+		for j := range probSeq {
+			probSeq[j] = rand.Float64()
+			probSum += probSeq[j]
+		}
+
+		logVec := make(linalg.Vector, len(probSeq))
+		resSeq[i] = &autofunc.Variable{
+			Vector: logVec,
+		}
+		for j := range logVec {
+			logVec[j] = math.Log(probSeq[j] / probSum)
+		}
+	}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		LogLikelihood(resSeq, label)
 	}
 }
 
