@@ -26,31 +26,7 @@ func TestLogLikelihoodOutputs(t *testing.T) {
 		for i := range label {
 			label[i] = rand.Intn(testSymbolCount)
 		}
-		resSeq := make([]autofunc.Result, seqLen)
-		rresSeq := make([]autofunc.RResult, seqLen)
-		seq := make([]linalg.Vector, seqLen)
-		for i := range seq {
-			seq[i] = make(linalg.Vector, testSymbolCount+1)
-			var probSum float64
-			for j := range seq[i] {
-				seq[i][j] = rand.Float64()
-				probSum += seq[i][j]
-			}
-			for j := range seq[i] {
-				seq[i][j] /= probSum
-			}
-			logVec := make(linalg.Vector, len(seq[i]))
-			resSeq[i] = &autofunc.Variable{
-				Vector: logVec,
-			}
-			for j := range logVec {
-				logVec[j] = math.Log(seq[i][j])
-			}
-			rresSeq[i] = &autofunc.RVariable{
-				Variable:   resSeq[i].(*autofunc.Variable),
-				ROutputVec: make(linalg.Vector, len(logVec)),
-			}
-		}
+		seq, resSeq, rresSeq := createTestSequence(seqLen, testSymbolCount)
 		expected := exactLikelihood(seq, label, -1)
 		actual := math.Exp(LogLikelihood(resSeq, label).Output()[0])
 		rActual := math.Exp(LogLikelihoodR(rresSeq, label).Output()[0])
@@ -70,29 +46,42 @@ func BenchmarkLogLikelihood(b *testing.B) {
 	for i := range label {
 		label[i] = rand.Intn(testSymbolCount)
 	}
-
-	resSeq := make([]autofunc.Result, benchSeqLen)
-	for i := range resSeq {
-		probSeq := make(linalg.Vector, benchSymbolCount+1)
-		var probSum float64
-		for j := range probSeq {
-			probSeq[j] = rand.Float64()
-			probSum += probSeq[j]
-		}
-
-		logVec := make(linalg.Vector, len(probSeq))
-		resSeq[i] = &autofunc.Variable{
-			Vector: logVec,
-		}
-		for j := range logVec {
-			logVec[j] = math.Log(probSeq[j] / probSum)
-		}
-	}
+	_, resSeq, _ := createTestSequence(benchSeqLen, benchSymbolCount)
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		LogLikelihood(resSeq, label)
 	}
+}
+
+func createTestSequence(seqLen, symCount int) (seq []linalg.Vector,
+	res []autofunc.Result, rres []autofunc.RResult) {
+	res = make([]autofunc.Result, seqLen)
+	rres = make([]autofunc.RResult, seqLen)
+	seq = make([]linalg.Vector, seqLen)
+	for i := range seq {
+		seq[i] = make(linalg.Vector, symCount+1)
+		var probSum float64
+		for j := range seq[i] {
+			seq[i][j] = rand.Float64()
+			probSum += seq[i][j]
+		}
+		for j := range seq[i] {
+			seq[i][j] /= probSum
+		}
+		logVec := make(linalg.Vector, len(seq[i]))
+		res[i] = &autofunc.Variable{
+			Vector: logVec,
+		}
+		for j := range logVec {
+			logVec[j] = math.Log(seq[i][j])
+		}
+		rres[i] = &autofunc.RVariable{
+			Variable:   res[i].(*autofunc.Variable),
+			ROutputVec: make(linalg.Vector, len(logVec)),
+		}
+	}
+	return
 }
 
 func exactLikelihood(seq []linalg.Vector, label []int, lastSymbol int) float64 {
