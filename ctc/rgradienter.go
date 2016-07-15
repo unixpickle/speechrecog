@@ -32,11 +32,15 @@ type RGradienter struct {
 }
 
 func (r *RGradienter) Gradient(s sgd.SampleSet) autofunc.Gradient {
+	s = s.Copy()
+	sortSampleSet(s)
 	return r.makeHelper().Gradient(s)
 }
 
 func (r *RGradienter) RGradient(v autofunc.RVector, s sgd.SampleSet) (autofunc.Gradient,
 	autofunc.RGradient) {
+	s = s.Copy()
+	sortSampleSet(s)
 	return r.makeHelper().RGradient(v, s)
 }
 

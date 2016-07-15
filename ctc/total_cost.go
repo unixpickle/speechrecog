@@ -2,6 +2,7 @@ package ctc
 
 import (
 	"runtime"
+	"sort"
 	"sync"
 
 	"github.com/unixpickle/autofunc"
@@ -19,6 +20,9 @@ func TotalCost(f rnn.SeqFunc, s sgd.SampleSet, maxBatch, maxGos int) float64 {
 	if maxGos == 0 {
 		maxGos = runtime.GOMAXPROCS(0)
 	}
+
+	s = s.Copy()
+	sortSampleSet(s)
 
 	subBatches := make(chan sgd.SampleSet, s.Len()/maxBatch+1)
 	for i := 0; i < s.Len(); i += maxBatch {
@@ -70,4 +74,28 @@ func costForBatch(f rnn.SeqFunc, s sgd.SampleSet) float64 {
 	}
 
 	return -sum
+}
+
+// sortSampleSet sorts samples so that the longest
+// sequences come first.
+func sortSampleSet(s sgd.SampleSet) {
+	sort.Sort(sampleSorter{s})
+}
+
+type sampleSorter struct {
+	s sgd.SampleSet
+}
+
+func (s sampleSorter) Len() int {
+	return s.s.Len()
+}
+
+func (s sampleSorter) Swap(i, j int) {
+	s.s.Swap(i, j)
+}
+
+func (s sampleSorter) Less(i, j int) bool {
+	item1 := s.s.GetSample(i).(Sample)
+	item2 := s.s.GetSample(j).(Sample)
+	return len(item1.Input) > len(item2.Input)
 }
