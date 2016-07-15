@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/unixpickle/autofunc"
+	"github.com/unixpickle/autofunc/functest"
 	"github.com/unixpickle/num-analysis/linalg"
 )
 
@@ -17,6 +18,34 @@ const (
 	benchSeqLen      = 500
 	benchSymbolCount = 30
 )
+
+var gradTestInputs = []*autofunc.Variable{
+	&autofunc.Variable{Vector: []float64{-1.58522, -1.38379, -0.92827, -1.90226}},
+	&autofunc.Variable{Vector: []float64{-2.87357, -2.75353, -1.11873, -0.59220}},
+	&autofunc.Variable{Vector: []float64{-1.23140, -1.08975, -1.89920, -1.50451}},
+	&autofunc.Variable{Vector: []float64{-1.44935, -1.51638, -1.59394, -1.07105}},
+	&autofunc.Variable{Vector: []float64{-2.15367, -1.80056, -2.75221, -0.42320}},
+}
+
+var gradTestLabels = []int{2, 0, 1}
+
+type logLikelihoodTestFunc struct{}
+
+func (_ logLikelihoodTestFunc) Apply(in autofunc.Result) autofunc.Result {
+	resVec := make([]autofunc.Result, len(gradTestInputs))
+	for i, x := range gradTestInputs {
+		resVec[i] = x
+	}
+	return LogLikelihood(resVec, gradTestLabels)
+}
+
+func (_ logLikelihoodTestFunc) ApplyR(rv autofunc.RVector, in autofunc.RResult) autofunc.RResult {
+	resVec := make([]autofunc.RResult, len(gradTestInputs))
+	for i, x := range gradTestInputs {
+		resVec[i] = autofunc.NewRVariable(x, rv)
+	}
+	return LogLikelihoodR(resVec, gradTestLabels)
+}
 
 func TestLogLikelihoodOutputs(t *testing.T) {
 	for i := 0; i < 10; i++ {
@@ -39,6 +68,35 @@ func TestLogLikelihoodOutputs(t *testing.T) {
 				rActual, expected)
 		}
 	}
+}
+
+func TestLoglikelihoodGradients(t *testing.T) {
+	test := functest.FuncTest{
+		F:     logLikelihoodTestFunc{},
+		Vars:  gradTestInputs,
+		Input: gradTestInputs[0],
+	}
+	test.Run(t)
+}
+
+func TestLoglikelihoodRGradients(t *testing.T) {
+	gradTestRVector := autofunc.RVector{}
+
+	for _, in := range gradTestInputs {
+		rVec := make(linalg.Vector, len(in.Vector))
+		for i := range rVec {
+			rVec[i] = rand.NormFloat64()
+		}
+		gradTestRVector[in] = rVec
+	}
+
+	test := functest.RFuncTest{
+		F:     logLikelihoodTestFunc{},
+		Vars:  gradTestInputs,
+		Input: gradTestInputs[0],
+		RV:    gradTestRVector,
+	}
+	test.Run(t)
 }
 
 func BenchmarkLogLikelihood(b *testing.B) {
