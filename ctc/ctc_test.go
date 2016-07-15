@@ -112,6 +112,26 @@ func BenchmarkLogLikelihood(b *testing.B) {
 	}
 }
 
+func BenchmarkLogLikelihoodGradient(b *testing.B) {
+	label := make([]int, benchLabelLen)
+	for i := range label {
+		label[i] = rand.Intn(testSymbolCount)
+	}
+	_, resSeq, _ := createTestSequence(benchSeqLen, benchSymbolCount)
+
+	grad := autofunc.Gradient{}
+	for _, s := range resSeq {
+		zeroVec := make(linalg.Vector, len(s.Output()))
+		grad[s.(*autofunc.Variable)] = zeroVec
+	}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		ll := LogLikelihood(resSeq, label)
+		ll.PropagateGradient(linalg.Vector{1}, grad)
+	}
+}
+
 func createTestSequence(seqLen, symCount int) (seq []linalg.Vector,
 	res []autofunc.Result, rres []autofunc.RResult) {
 	res = make([]autofunc.Result, seqLen)
