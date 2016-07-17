@@ -99,6 +99,40 @@ func TestLoglikelihoodRGradients(t *testing.T) {
 	test.Run(t)
 }
 
+func TestLoglikelihoodRConsistency(t *testing.T) {
+	label := make([]int, benchLabelLen)
+	for i := range label {
+		label[i] = rand.Intn(testSymbolCount)
+	}
+	_, resSeq, rresSeq := createTestSequence(benchSeqLen, benchSymbolCount)
+
+	grad := autofunc.Gradient{}
+	gradFromR := autofunc.Gradient{}
+	for _, s := range resSeq {
+		zeroVec := make(linalg.Vector, len(s.Output()))
+		grad[s.(*autofunc.Variable)] = zeroVec
+		zeroVec = make(linalg.Vector, len(s.Output()))
+		gradFromR[s.(*autofunc.Variable)] = zeroVec
+	}
+
+	ll := LogLikelihood(resSeq, label)
+	ll.PropagateGradient(linalg.Vector{1}, grad)
+
+	llR := LogLikelihoodR(rresSeq, label)
+	llR.PropagateRGradient(linalg.Vector{1}, linalg.Vector{0}, autofunc.RGradient{},
+		gradFromR)
+
+	for variable, gradVec := range grad {
+		rgradVec := gradFromR[variable]
+		for i, x := range gradVec {
+			y := rgradVec[i]
+			if math.Abs(x-y) > testPrecision {
+				t.Errorf("grad value has %e but grad (R) has %e", x, y)
+			}
+		}
+	}
+}
+
 func BenchmarkLogLikelihood(b *testing.B) {
 	label := make([]int, benchLabelLen)
 	for i := range label {
