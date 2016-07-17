@@ -132,6 +132,42 @@ func BenchmarkLogLikelihoodGradient(b *testing.B) {
 	}
 }
 
+func BenchmarkLogLikelihoodR(b *testing.B) {
+	label := make([]int, benchLabelLen)
+	for i := range label {
+		label[i] = rand.Intn(testSymbolCount)
+	}
+	_, _, rresSeq := createTestSequence(benchSeqLen, benchSymbolCount)
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		LogLikelihoodR(rresSeq, label)
+	}
+}
+
+func BenchmarkLogLikelihoodRGradient(b *testing.B) {
+	label := make([]int, benchLabelLen)
+	for i := range label {
+		label[i] = rand.Intn(testSymbolCount)
+	}
+	_, _, rresSeq := createTestSequence(benchSeqLen, benchSymbolCount)
+
+	grad := autofunc.Gradient{}
+	rgrad := autofunc.RGradient{}
+	for _, s := range rresSeq {
+		zeroVec := make(linalg.Vector, len(s.Output()))
+		grad[s.(*autofunc.RVariable).Variable] = zeroVec
+		zeroVec = make(linalg.Vector, len(s.Output()))
+		rgrad[s.(*autofunc.RVariable).Variable] = zeroVec
+	}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		ll := LogLikelihoodR(rresSeq, label)
+		ll.PropagateRGradient(linalg.Vector{1}, linalg.Vector{0}, rgrad, grad)
+	}
+}
+
 func createTestSequence(seqLen, symCount int) (seq []linalg.Vector,
 	res []autofunc.Result, rres []autofunc.RResult) {
 	res = make([]autofunc.Result, seqLen)
