@@ -24,6 +24,9 @@ import (
 // to elements of the output vectors (e.g. a label 2
 // corresponds to whatever symbol is represented by
 // element 2 of the output vectors).
+//
+// The result is only valid so long as the label slice
+// is not changed by the caller.
 func LogLikelihood(seq []autofunc.Result, label []int) autofunc.Result {
 	if len(seq) == 0 {
 		if len(label) == 0 {
@@ -48,26 +51,31 @@ func LogLikelihood(seq []autofunc.Result, label []int) autofunc.Result {
 		Vector: initProbs,
 	}
 
-	for _, input := range seq {
-		positionProbs = autofunc.Pool(positionProbs, func(last autofunc.Result) autofunc.Result {
-			resParts := make([]autofunc.Result, len(label)*2+1)
-			resParts[0] = mulProbabilities(vectorEntry(last, 0), vectorEntry(input, -1))
-			for i := 2; i < len(label)*2+1; i += 2 {
-				resParts[i] = mulProbabilities(vectorEntry(input, -1),
-					addProbabilities(vectorEntry(last, i-1), vectorEntry(last, i)))
-			}
-			if len(label) > 0 {
-				resParts[1] = mulProbabilities(vectorEntry(input, label[0]),
-					addProbabilities(vectorEntry(last, 0), vectorEntry(last, 1)))
-			}
-			for i := 3; i < len(label)*2+1; i += 2 {
-				positionSum := addProbabilities(addProbabilities(vectorEntry(last, i),
-					vectorEntry(last, i-1)), vectorEntry(last, i-2))
-				labelIdx := (i - 1) / 2
-				resParts[i] = mulProbabilities(vectorEntry(input, label[labelIdx]), positionSum)
-			}
-			return autofunc.Concat(resParts...)
-		})
+	for _, inputRes := range seq {
+		input := inputRes.Output()
+		last := positionProbs.Output()
+		newProbs := make(linalg.Vector, len(positionProbs.Output()))
+		newProbs[0] = last[0] + input[len(input)-1]
+		for i := 2; i < len(label)*2+1; i += 2 {
+			newProbs[i] = addProbabilitiesFloat(last[i-1], last[i]) +
+				input[len(input)-1]
+		}
+		if len(label) > 0 {
+			newProbs[1] = addProbabilitiesFloat(last[0], last[1]) +
+				input[label[0]]
+		}
+		for i := 3; i < len(label)*2+1; i += 2 {
+			positionSum := addProbabilitiesFloat(last[i],
+				addProbabilitiesFloat(last[i-2], last[i-1]))
+			labelIdx := (i - 1) / 2
+			newProbs[i] = input[label[labelIdx]] + positionSum
+		}
+		positionProbs = &logLikelihoodStep{
+			OutputVec: newProbs,
+			LastProbs: positionProbs,
+			SeqIn:     inputRes,
+			Label:     label,
+		}
 	}
 
 	return addProbabilities(vectorEntry(positionProbs, -1), vectorEntry(positionProbs, -2))
@@ -127,6 +135,76 @@ func LogLikelihoodR(seq []autofunc.RResult, label []int) autofunc.RResult {
 	return addProbabilitiesR(vectorEntryR(positionProbs, -1), vectorEntryR(positionProbs, -2))
 }
 
+type logLikelihoodStep struct {
+	OutputVec linalg.Vector
+	LastProbs autofunc.Result
+	SeqIn     autofunc.Result
+	Label     []int
+}
+
+func (l *logLikelihoodStep) Output() linalg.Vector {
+	return l.OutputVec
+}
+
+func (l *logLikelihoodStep) Constant(g autofunc.Gradient) bool {
+	return l.SeqIn.Constant(g) && l.LastProbs.Constant(g)
+}
+
+func (l *logLikelihoodStep) PropagateGradient(upstream linalg.Vector, g autofunc.Gradient) {
+	if l.Constant(g) {
+		return
+	}
+
+	last := l.LastProbs.Output()
+	input := l.SeqIn.Output()
+
+	lastGrad := make(linalg.Vector, len(last))
+	inputGrad := make(linalg.Vector, len(input))
+
+	lastGrad[0] = upstream[0]
+	inputGrad[len(inputGrad)-1] = upstream[0]
+
+	for i := 2; i < len(l.Label)*2+1; i += 2 {
+		inputGrad[len(inputGrad)-1] += upstream[i]
+		da, db := productSumPartials(last[i-1], last[i], upstream[i])
+		lastGrad[i-1] += da
+		lastGrad[i] += db
+	}
+	if len(l.Label) > 0 {
+		inputGrad[l.Label[0]] += upstream[1]
+		da, db := productSumPartials(last[0], last[1], upstream[1])
+		lastGrad[0] += da
+		lastGrad[1] += db
+	}
+	for i := 3; i < len(l.Label)*2+1; i += 2 {
+		labelIdx := (i - 1) / 2
+		inputGrad[l.Label[labelIdx]] += upstream[i]
+		a := addProbabilitiesFloat(last[i-2], last[i-1])
+		b := last[i]
+		da, db := productSumPartials(a, b, upstream[i])
+		lastGrad[i] += db
+		da, db = productSumPartials(last[i-2], last[i-1], da)
+		lastGrad[i-2] += da
+		lastGrad[i-1] += db
+	}
+
+	if !l.LastProbs.Constant(g) {
+		l.LastProbs.PropagateGradient(lastGrad, g)
+	}
+	if !l.SeqIn.Constant(g) {
+		l.SeqIn.PropagateGradient(inputGrad, g)
+	}
+}
+
+func productSumPartials(a, b, upstream float64) (da, db float64) {
+	aExp := math.Exp(a)
+	bExp := math.Exp(b)
+	denom := aExp + bExp
+	da = upstream * aExp / denom
+	db = upstream * bExp / denom
+	return
+}
+
 // vectorEntry returns a Result for the i-th entry in
 // an autofunc.Result.
 // If i is negative, then the length of the vector is
@@ -143,17 +221,6 @@ func vectorEntryR(vec autofunc.RResult, i int) autofunc.RResult {
 		i += len(vec.Output())
 	}
 	return autofunc.SliceR(vec, i, i+1)
-}
-
-// mulProbabilities multiplies two probabilities given
-// their logarithms and returns the new log probability.
-func mulProbabilities(p1, p2 autofunc.Result) autofunc.Result {
-	if math.IsInf(p1.Output()[0], -1) {
-		return p1
-	} else if math.IsInf(p2.Output()[0], -1) {
-		return p2
-	}
-	return autofunc.Add(p1, p2)
 }
 
 func mulProbabilitiesR(p1, p2 autofunc.RResult) autofunc.RResult {
@@ -181,6 +248,18 @@ func addProbabilities(p1, p2 autofunc.Result) autofunc.Result {
 	exp2 := exp.Apply(offset2)
 	sumLog := autofunc.Log{}.Apply(autofunc.Add(exp1, exp2))
 	return autofunc.AddScaler(sumLog, normalizer)
+}
+
+func addProbabilitiesFloat(a, b float64) float64 {
+	if math.IsInf(a, -1) {
+		return b
+	} else if math.IsInf(b, -1) {
+		return a
+	}
+	normalizer := math.Max(a, b)
+	exp1 := math.Exp(a - normalizer)
+	exp2 := math.Exp(b - normalizer)
+	return math.Log(exp1+exp2) + normalizer
 }
 
 func addProbabilitiesR(p1, p2 autofunc.RResult) autofunc.RResult {
