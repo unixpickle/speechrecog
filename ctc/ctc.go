@@ -197,11 +197,14 @@ func (l *logLikelihoodStep) PropagateGradient(upstream linalg.Vector, g autofunc
 }
 
 func productSumPartials(a, b, upstream float64) (da, db float64) {
-	aExp := math.Exp(a)
-	bExp := math.Exp(b)
-	denom := aExp + bExp
-	da = upstream * aExp / denom
-	db = upstream * bExp / denom
+	if math.IsInf(a, -1) && math.IsInf(b, -1) {
+		return
+	}
+	denomLog := addProbabilitiesFloat(a, b)
+	daLog := a - denomLog
+	dbLog := b - denomLog
+	da = upstream * math.Exp(daLog)
+	db = upstream * math.Exp(dbLog)
 	return
 }
 
