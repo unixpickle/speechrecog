@@ -110,26 +110,43 @@ func LogLikelihoodR(seq []autofunc.RResult, label []int) autofunc.RResult {
 		ROutputVec: make(linalg.Vector, len(initProbs)),
 	}
 
-	for _, input := range seq {
-		positionProbs = autofunc.PoolR(positionProbs, func(last autofunc.RResult) autofunc.RResult {
-			resParts := make([]autofunc.RResult, len(label)*2+1)
-			resParts[0] = mulProbabilitiesR(vectorEntryR(last, 0), vectorEntryR(input, -1))
-			for i := 2; i < len(label)*2+1; i += 2 {
-				resParts[i] = mulProbabilitiesR(vectorEntryR(input, -1),
-					addProbabilitiesR(vectorEntryR(last, i-1), vectorEntryR(last, i)))
-			}
-			if len(label) > 0 {
-				resParts[1] = mulProbabilitiesR(vectorEntryR(input, label[0]),
-					addProbabilitiesR(vectorEntryR(last, 0), vectorEntryR(last, 1)))
-			}
-			for i := 3; i < len(label)*2+1; i += 2 {
-				positionSum := addProbabilitiesR(addProbabilitiesR(vectorEntryR(last, i),
-					vectorEntryR(last, i-1)), vectorEntryR(last, i-2))
-				labelIdx := (i - 1) / 2
-				resParts[i] = mulProbabilitiesR(vectorEntryR(input, label[labelIdx]), positionSum)
-			}
-			return autofunc.ConcatR(resParts...)
-		})
+	for _, inputRes := range seq {
+		input := inputRes.Output()
+		last := positionProbs.Output()
+		inputR := inputRes.ROutput()
+		lastR := positionProbs.ROutput()
+		newProbs := make(linalg.Vector, len(positionProbs.Output()))
+		newProbsR := make(linalg.Vector, len(positionProbs.Output()))
+		newProbs[0] = last[0] + input[len(input)-1]
+		newProbsR[0] = lastR[0] + inputR[len(input)-1]
+		for i := 2; i < len(label)*2+1; i += 2 {
+			newProbs[i], newProbsR[i] = addProbabilitiesFloatR(last[i-1], lastR[i-1],
+				last[i], lastR[i])
+			newProbs[i] += input[len(input)-1]
+			newProbsR[i] += inputR[len(input)-1]
+		}
+		if len(label) > 0 {
+			newProbs[1], newProbsR[1] = addProbabilitiesFloatR(last[0], lastR[0],
+				last[1], lastR[1])
+			newProbs[1] += input[label[0]]
+			newProbsR[1] += inputR[label[0]]
+		}
+		for i := 3; i < len(label)*2+1; i += 2 {
+			subSum, subSumR := addProbabilitiesFloatR(last[i-2], lastR[i-2],
+				last[i-1], lastR[i-1])
+			posSum, posSumR := addProbabilitiesFloatR(last[i], lastR[i],
+				subSum, subSumR)
+			labelIdx := (i - 1) / 2
+			newProbs[i] = input[label[labelIdx]] + posSum
+			newProbsR[i] = inputR[label[labelIdx]] + posSumR
+		}
+		positionProbs = &logLikelihoodRStep{
+			OutputVec:  newProbs,
+			ROutputVec: newProbsR,
+			LastProbs:  positionProbs,
+			SeqIn:      inputRes,
+			Label:      label,
+		}
 	}
 
 	return addProbabilitiesR(vectorEntryR(positionProbs, -1), vectorEntryR(positionProbs, -2))
@@ -196,6 +213,91 @@ func (l *logLikelihoodStep) PropagateGradient(upstream linalg.Vector, g autofunc
 	}
 }
 
+type logLikelihoodRStep struct {
+	OutputVec  linalg.Vector
+	ROutputVec linalg.Vector
+	LastProbs  autofunc.RResult
+	SeqIn      autofunc.RResult
+	Label      []int
+}
+
+func (l *logLikelihoodRStep) Output() linalg.Vector {
+	return l.OutputVec
+}
+
+func (l *logLikelihoodRStep) ROutput() linalg.Vector {
+	return l.ROutputVec
+}
+
+func (l *logLikelihoodRStep) Constant(rg autofunc.RGradient, g autofunc.Gradient) bool {
+	return l.SeqIn.Constant(rg, g) && l.LastProbs.Constant(rg, g)
+}
+
+func (l *logLikelihoodRStep) PropagateRGradient(upstream, upstreamR linalg.Vector,
+	rg autofunc.RGradient, g autofunc.Gradient) {
+	if l.Constant(rg, g) {
+		return
+	}
+
+	last := l.LastProbs.Output()
+	lastR := l.LastProbs.ROutput()
+	input := l.SeqIn.Output()
+
+	lastGrad := make(linalg.Vector, len(last))
+	lastGradR := make(linalg.Vector, len(last))
+	inputGrad := make(linalg.Vector, len(input))
+	inputGradR := make(linalg.Vector, len(input))
+
+	lastGrad[0] = upstream[0]
+	lastGradR[0] = upstreamR[0]
+	inputGrad[len(inputGrad)-1] = upstream[0]
+	inputGradR[len(inputGrad)-1] = upstreamR[0]
+
+	for i := 2; i < len(l.Label)*2+1; i += 2 {
+		inputGrad[len(inputGrad)-1] += upstream[i]
+		inputGradR[len(inputGrad)-1] += upstreamR[i]
+		da, daR, db, dbR := productSumPartialsR(last[i-1], lastR[i-1], last[i], lastR[i],
+			upstream[i], upstreamR[i])
+		lastGrad[i-1] += da
+		lastGrad[i] += db
+		lastGradR[i-1] += daR
+		lastGradR[i] += dbR
+	}
+	if len(l.Label) > 0 {
+		inputGrad[l.Label[0]] += upstream[1]
+		inputGradR[l.Label[0]] += upstreamR[1]
+		da, daR, db, dbR := productSumPartialsR(last[0], lastR[0], last[1], lastR[1],
+			upstream[1], upstreamR[1])
+		lastGrad[0] += da
+		lastGrad[1] += db
+		lastGradR[0] += daR
+		lastGradR[1] += dbR
+	}
+	for i := 3; i < len(l.Label)*2+1; i += 2 {
+		labelIdx := (i - 1) / 2
+		inputGrad[l.Label[labelIdx]] += upstream[i]
+		inputGradR[l.Label[labelIdx]] += upstreamR[i]
+		a, aR := addProbabilitiesFloatR(last[i-2], lastR[i-2], last[i-1], lastR[i-1])
+		b, bR := last[i], lastR[i]
+		da, daR, db, dbR := productSumPartialsR(a, aR, b, bR, upstream[i], upstreamR[i])
+		lastGrad[i] += db
+		lastGradR[i] += dbR
+		da, daR, db, dbR = productSumPartialsR(last[i-2], lastR[i-2], last[i-1],
+			lastR[i-1], da, daR)
+		lastGrad[i-2] += da
+		lastGrad[i-1] += db
+		lastGradR[i-2] += daR
+		lastGradR[i-1] += dbR
+	}
+
+	if !l.LastProbs.Constant(rg, g) {
+		l.LastProbs.PropagateRGradient(lastGrad, lastGradR, rg, g)
+	}
+	if !l.SeqIn.Constant(rg, g) {
+		l.SeqIn.PropagateRGradient(inputGrad, inputGradR, rg, g)
+	}
+}
+
 func productSumPartials(a, b, upstream float64) (da, db float64) {
 	if math.IsInf(a, -1) && math.IsInf(b, -1) {
 		return
@@ -205,6 +307,20 @@ func productSumPartials(a, b, upstream float64) (da, db float64) {
 	dbLog := b - denomLog
 	da = upstream * math.Exp(daLog)
 	db = upstream * math.Exp(dbLog)
+	return
+}
+
+func productSumPartialsR(a, aR, b, bR, upstream, upstreamR float64) (da, daR, db, dbR float64) {
+	if math.IsInf(a, -1) && math.IsInf(b, -1) {
+		return
+	}
+	denomLog, denomLogR := addProbabilitiesFloatR(a, aR, b, bR)
+	daExp := math.Exp(a - denomLog)
+	dbExp := math.Exp(b - denomLog)
+	da = upstream * daExp
+	db = upstream * dbExp
+	daR = upstreamR*daExp + upstream*daExp*(aR-denomLogR)
+	dbR = upstreamR*dbExp + upstream*dbExp*(bR-denomLogR)
 	return
 }
 
@@ -226,15 +342,6 @@ func vectorEntryR(vec autofunc.RResult, i int) autofunc.RResult {
 	return autofunc.SliceR(vec, i, i+1)
 }
 
-func mulProbabilitiesR(p1, p2 autofunc.RResult) autofunc.RResult {
-	if math.IsInf(p1.Output()[0], -1) {
-		return p1
-	} else if math.IsInf(p2.Output()[0], -1) {
-		return p2
-	}
-	return autofunc.AddR(p1, p2)
-}
-
 // addProbabilities adds two probabilities given their
 // logarithms and returns the new log probability.
 func addProbabilities(p1, p2 autofunc.Result) autofunc.Result {
@@ -253,18 +360,6 @@ func addProbabilities(p1, p2 autofunc.Result) autofunc.Result {
 	return autofunc.AddScaler(sumLog, normalizer)
 }
 
-func addProbabilitiesFloat(a, b float64) float64 {
-	if math.IsInf(a, -1) {
-		return b
-	} else if math.IsInf(b, -1) {
-		return a
-	}
-	normalizer := math.Max(a, b)
-	exp1 := math.Exp(a - normalizer)
-	exp2 := math.Exp(b - normalizer)
-	return math.Log(exp1+exp2) + normalizer
-}
-
 func addProbabilitiesR(p1, p2 autofunc.RResult) autofunc.RResult {
 	if math.IsInf(p1.Output()[0], -1) {
 		return p2
@@ -279,4 +374,30 @@ func addProbabilitiesR(p1, p2 autofunc.RResult) autofunc.RResult {
 	exp2 := exp.ApplyR(autofunc.RVector{}, offset2)
 	sumLog := autofunc.Log{}.ApplyR(autofunc.RVector{}, autofunc.AddR(exp1, exp2))
 	return autofunc.AddScalerR(sumLog, normalizer)
+}
+
+func addProbabilitiesFloat(a, b float64) float64 {
+	if math.IsInf(a, -1) {
+		return b
+	} else if math.IsInf(b, -1) {
+		return a
+	}
+	normalizer := math.Max(a, b)
+	exp1 := math.Exp(a - normalizer)
+	exp2 := math.Exp(b - normalizer)
+	return math.Log(exp1+exp2) + normalizer
+}
+
+func addProbabilitiesFloatR(a, aR, b, bR float64) (res, resR float64) {
+	if math.IsInf(a, -1) {
+		return b, bR
+	} else if math.IsInf(b, -1) {
+		return a, aR
+	}
+	normalizer := math.Max(a, b)
+	exp1 := math.Exp(a - normalizer)
+	exp2 := math.Exp(b - normalizer)
+	res = math.Log(exp1+exp2) + normalizer
+	resR = (exp1*aR + exp2*bR) / (exp1 + exp2)
+	return
 }
