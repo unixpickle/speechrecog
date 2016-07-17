@@ -126,7 +126,7 @@ func TestLoglikelihoodRConsistency(t *testing.T) {
 		rgradVec := gradFromR[variable]
 		for i, x := range gradVec {
 			y := rgradVec[i]
-			if math.Abs(x-y) > testPrecision {
+			if math.IsNaN(x) || math.IsNaN(y) || math.Abs(x-y) > testPrecision {
 				t.Errorf("grad value has %e but grad (R) has %e", x, y)
 			}
 		}
