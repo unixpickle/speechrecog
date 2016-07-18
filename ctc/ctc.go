@@ -1,6 +1,6 @@
-// Package ctc implements Connectionist Temporal Coding
-// for training models (typically neural networks) to
-// predict output sequences.
+// Package ctc implements Connectionist Temporal
+// Classification for training models (typically
+// neural networks) to predict output sequences.
 //
 // For more on CTC, check out the paper:
 // ftp://ftp.idsia.ch/pub/juergen/icml2006.pdf.
