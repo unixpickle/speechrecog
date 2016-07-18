@@ -249,7 +249,7 @@ func exactLikelihood(seq []linalg.Vector, label []int, lastSymbol int) float64 {
 	if lastSymbol >= 0 {
 		res += next[lastSymbol] * exactLikelihood(seq[1:], label, lastSymbol)
 	}
-	if len(label) > 0 {
+	if len(label) > 0 && label[0] != lastSymbol {
 		res += next[label[0]] * exactLikelihood(seq[1:], label[1:], label[0])
 	}
 	return res

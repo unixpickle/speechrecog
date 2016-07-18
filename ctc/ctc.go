@@ -60,14 +60,13 @@ func LogLikelihood(seq []autofunc.Result, label []int) autofunc.Result {
 			newProbs[i] = addProbabilitiesFloat(last[i-1], last[i]) +
 				input[len(input)-1]
 		}
-		if len(label) > 0 {
-			newProbs[1] = addProbabilitiesFloat(last[0], last[1]) +
-				input[label[0]]
-		}
-		for i := 3; i < len(label)*2+1; i += 2 {
-			positionSum := addProbabilitiesFloat(last[i],
-				addProbabilitiesFloat(last[i-2], last[i-1]))
+		for i := 1; i < len(label)*2+1; i += 2 {
 			labelIdx := (i - 1) / 2
+			positionSum := addProbabilitiesFloat(last[i], last[i-1])
+			if labelIdx > 0 && label[labelIdx-1] != label[labelIdx] {
+				positionSum = addProbabilitiesFloat(positionSum,
+					last[i-2])
+			}
 			newProbs[i] = input[label[labelIdx]] + positionSum
 		}
 		positionProbs = &logLikelihoodStep{
@@ -125,18 +124,14 @@ func LogLikelihoodR(seq []autofunc.RResult, label []int) autofunc.RResult {
 			newProbs[i] += input[len(input)-1]
 			newProbsR[i] += inputR[len(input)-1]
 		}
-		if len(label) > 0 {
-			newProbs[1], newProbsR[1] = addProbabilitiesFloatR(last[0], lastR[0],
-				last[1], lastR[1])
-			newProbs[1] += input[label[0]]
-			newProbsR[1] += inputR[label[0]]
-		}
-		for i := 3; i < len(label)*2+1; i += 2 {
-			subSum, subSumR := addProbabilitiesFloatR(last[i-2], lastR[i-2],
-				last[i-1], lastR[i-1])
-			posSum, posSumR := addProbabilitiesFloatR(last[i], lastR[i],
-				subSum, subSumR)
+		for i := 1; i < len(label)*2+1; i += 2 {
 			labelIdx := (i - 1) / 2
+			posSum, posSumR := addProbabilitiesFloatR(last[i-1], lastR[i-1],
+				last[i], lastR[i])
+			if labelIdx > 0 && label[labelIdx-1] != label[labelIdx] {
+				posSum, posSumR = addProbabilitiesFloatR(last[i-2], lastR[i-2],
+					posSum, posSumR)
+			}
 			newProbs[i] = input[label[labelIdx]] + posSum
 			newProbsR[i] = inputR[label[labelIdx]] + posSumR
 		}
@@ -187,22 +182,22 @@ func (l *logLikelihoodStep) PropagateGradient(upstream linalg.Vector, g autofunc
 		lastGrad[i-1] += da
 		lastGrad[i] += db
 	}
-	if len(l.Label) > 0 {
-		inputGrad[l.Label[0]] += upstream[1]
-		da, db := productSumPartials(last[0], last[1], upstream[1])
-		lastGrad[0] += da
-		lastGrad[1] += db
-	}
-	for i := 3; i < len(l.Label)*2+1; i += 2 {
+	for i := 1; i < len(l.Label)*2+1; i += 2 {
 		labelIdx := (i - 1) / 2
 		inputGrad[l.Label[labelIdx]] += upstream[i]
-		a := addProbabilitiesFloat(last[i-2], last[i-1])
-		b := last[i]
-		da, db := productSumPartials(a, b, upstream[i])
-		lastGrad[i] += db
-		da, db = productSumPartials(last[i-2], last[i-1], da)
-		lastGrad[i-2] += da
-		lastGrad[i-1] += db
+		if labelIdx > 0 && l.Label[labelIdx-1] != l.Label[labelIdx] {
+			a := addProbabilitiesFloat(last[i-2], last[i-1])
+			b := last[i]
+			da, db := productSumPartials(a, b, upstream[i])
+			lastGrad[i] += db
+			da, db = productSumPartials(last[i-2], last[i-1], da)
+			lastGrad[i-2] += da
+			lastGrad[i-1] += db
+		} else {
+			da, db := productSumPartials(last[i-1], last[i], upstream[i])
+			lastGrad[i-1] += da
+			lastGrad[i] += db
+		}
 	}
 
 	if !l.LastProbs.Constant(g) {
@@ -263,31 +258,30 @@ func (l *logLikelihoodRStep) PropagateRGradient(upstream, upstreamR linalg.Vecto
 		lastGradR[i-1] += daR
 		lastGradR[i] += dbR
 	}
-	if len(l.Label) > 0 {
-		inputGrad[l.Label[0]] += upstream[1]
-		inputGradR[l.Label[0]] += upstreamR[1]
-		da, daR, db, dbR := productSumPartialsR(last[0], lastR[0], last[1], lastR[1],
-			upstream[1], upstreamR[1])
-		lastGrad[0] += da
-		lastGrad[1] += db
-		lastGradR[0] += daR
-		lastGradR[1] += dbR
-	}
-	for i := 3; i < len(l.Label)*2+1; i += 2 {
+	for i := 1; i < len(l.Label)*2+1; i += 2 {
 		labelIdx := (i - 1) / 2
 		inputGrad[l.Label[labelIdx]] += upstream[i]
 		inputGradR[l.Label[labelIdx]] += upstreamR[i]
-		a, aR := addProbabilitiesFloatR(last[i-2], lastR[i-2], last[i-1], lastR[i-1])
-		b, bR := last[i], lastR[i]
-		da, daR, db, dbR := productSumPartialsR(a, aR, b, bR, upstream[i], upstreamR[i])
-		lastGrad[i] += db
-		lastGradR[i] += dbR
-		da, daR, db, dbR = productSumPartialsR(last[i-2], lastR[i-2], last[i-1],
-			lastR[i-1], da, daR)
-		lastGrad[i-2] += da
-		lastGrad[i-1] += db
-		lastGradR[i-2] += daR
-		lastGradR[i-1] += dbR
+		if labelIdx > 0 && l.Label[labelIdx-1] != l.Label[labelIdx] {
+			a, aR := addProbabilitiesFloatR(last[i-2], lastR[i-2], last[i-1], lastR[i-1])
+			b, bR := last[i], lastR[i]
+			da, daR, db, dbR := productSumPartialsR(a, aR, b, bR, upstream[i], upstreamR[i])
+			lastGrad[i] += db
+			lastGradR[i] += dbR
+			da, daR, db, dbR = productSumPartialsR(last[i-2], lastR[i-2], last[i-1],
+				lastR[i-1], da, daR)
+			lastGrad[i-2] += da
+			lastGrad[i-1] += db
+			lastGradR[i-2] += daR
+			lastGradR[i-1] += dbR
+		} else {
+			da, daR, db, dbR := productSumPartialsR(last[i-1], lastR[i-1], last[i],
+				lastR[i], upstream[i], upstreamR[i])
+			lastGrad[i-1] += da
+			lastGradR[i-1] += daR
+			lastGrad[i] += db
+			lastGradR[i] += dbR
+		}
 	}
 
 	if !l.LastProbs.Constant(rg, g) {
