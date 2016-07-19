@@ -1,3 +1,5 @@
+// Command recorder is a web app for recording
+// speech clips.
 package main
 
 import (

@@ -1,3 +1,5 @@
+// Package speechdata facilitates loading and saving
+// databases of labeled speech samples.
 package speechdata
 
 import (

@@ -1,3 +1,5 @@
+// Command mfcc-graph produces HTML graphs of MFCC
+// coefficients for an audio file.
 package main
 
 import (
