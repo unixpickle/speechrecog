@@ -1,6 +1,7 @@
 package ctc
 
 import (
+	"math"
 	"sort"
 
 	"github.com/unixpickle/num-analysis/linalg"
@@ -32,117 +33,92 @@ func PrefixSearch(seq []linalg.Vector, blankThresh float64) []int {
 
 	var res []int
 	for _, sub := range subSeqs {
-		res = append(res, fullPrefixSearch(sub)...)
+		subRes, _ := prefixSearch(sub, nil, math.Inf(-1), 0)
+		res = append(res, subRes...)
 	}
 	return res
 }
 
-func fullPrefixSearch(seq []linalg.Vector) []int {
-	m := &prefixMap{
-		List:     []*prefix{&prefix{EndsWithStop: true}},
-		LogProbs: []float64{0},
+// prefixSearch performs prefix search starting from
+// the first element of seq, given the existing prefix
+// and the logged probabilities of that prefix with
+// and without a terminating blank.
+// It returns the best possible prefix and said prefix's
+// probability.
+func prefixSearch(seq []linalg.Vector, prefix []int, noBlankProb,
+	blankProb float64) (bestSeq []int, bestProb float64) {
+	if len(seq) == 0 {
+		return prefix, addProbabilitiesFloat(noBlankProb, blankProb)
 	}
 
-	for _, x := range seq {
-		blank := len(x) - 1
-		newMap := &prefixMap{}
-		for i, pref := range m.List {
-			prob := m.LogProbs[i]
-			if pref.EndsWithStop {
-				newMap.AddLogProb(pref, prob+x[blank])
-			} else {
-				newMap.AddLogProb(pref, prob+x[pref.Seq[len(pref.Seq)-1]])
-				blankPref := pref.Copy()
-				blankPref.EndsWithStop = true
-				newMap.AddLogProb(blankPref, prob+x[blank])
-			}
-			for symIdx, symProb := range x[:blank] {
-				newPref := pref.Copy()
-				newPref.EndsWithStop = false
-				newPref.Seq = append(newPref.Seq, symIdx)
-				newMap.AddLogProb(newPref, prob+symProb)
-			}
-		}
-		m = newMap
-	}
+	totalProb := addProbabilitiesFloat(noBlankProb, blankProb)
 
-	// Needed to combine sequences with and without
-	// terminating blanks.
-	resultMap := &prefixMap{}
-	for i, pref := range m.List {
-		prob := m.LogProbs[i]
-		resultMap.AddLogProb(&prefix{Seq: pref.Seq}, prob)
-	}
-
-	var likeliest []int
-	var bestLikelihood float64
-	for i, likelihood := range resultMap.LogProbs {
-		if i == 0 || likelihood > bestLikelihood {
-			bestLikelihood = likelihood
-			likeliest = resultMap.List[i].Seq
+	var exts extensionList
+	timeVec := seq[0]
+	for i := 0; i < len(timeVec)-1; i++ {
+		exts.Labels = append(exts.Labels, i)
+		if len(prefix) > 0 && i == prefix[len(prefix)-1] {
+			exts.Probs = append(exts.Probs, timeVec[i]+blankProb)
+		} else {
+			exts.Probs = append(exts.Probs, timeVec[i]+totalProb)
 		}
 	}
-	return likeliest
-}
 
-type prefix struct {
-	Seq          []int
-	EndsWithStop bool
-}
+	exts.Labels = append(exts.Labels, -1)
+	sameBlank := totalProb + timeVec[len(timeVec)-1]
+	sameNoBlank := math.Inf(-1)
+	if len(prefix) > 0 {
+		last := prefix[len(prefix)-1]
+		sameNoBlank = noBlankProb + timeVec[last]
+	}
+	exts.Probs = append(exts.Probs, addProbabilitiesFloat(sameNoBlank, sameBlank))
 
-// Compare returns -1 if p < p1, 0 if p == p1, and
-// 1 if p > p1.
-// The comparison system is arbitrary but well-defined.
-func (p *prefix) Compare(p1 *prefix) int {
-	if p.EndsWithStop && !p1.EndsWithStop {
-		return 1
-	} else if !p.EndsWithStop && p1.EndsWithStop {
-		return -1
-	}
-	if len(p.Seq) < len(p1.Seq) {
-		return -1
-	} else if len(p.Seq) > len(p1.Seq) {
-		return 1
-	}
-	for i, x := range p.Seq {
-		if x < p1.Seq[i] {
-			return -1
-		} else if x > p1.Seq[i] {
-			return 1
+	sort.Sort(&exts)
+
+	for i, addition := range exts.Labels {
+		prob := exts.Probs[i]
+		if i > 0 && prob < bestProb {
+			continue
+		}
+
+		var s []int
+		var p float64
+		if addition == -1 {
+			s, p = prefixSearch(seq[1:], prefix, sameNoBlank, sameBlank)
+		} else {
+			newPrefix := make([]int, len(prefix)+1)
+			copy(newPrefix, prefix)
+			newPrefix[len(prefix)] = addition
+			s, p = prefixSearch(seq[1:], newPrefix, prob, math.Inf(-1))
+		}
+		if i == 0 || p > bestProb {
+			bestProb = p
+			bestSeq = s
 		}
 	}
-	return 0
+
+	return
 }
 
-func (p *prefix) Copy() *prefix {
-	res := &prefix{
-		Seq:          make([]int, len(p.Seq)),
-		EndsWithStop: p.EndsWithStop,
-	}
-	copy(res.Seq, p.Seq)
-	return res
+type prefixSearchResult struct {
+	bestSeq       []int
+	logLikelihood float64
 }
 
-type prefixMap struct {
-	List     []*prefix
-	LogProbs []float64
+type extensionList struct {
+	Labels []int
+	Probs  []float64
 }
 
-func (p *prefixMap) AddLogProb(prefix *prefix, logProb float64) {
-	idx := sort.Search(len(p.List), func(i int) bool {
-		return p.List[i].Compare(prefix) >= 0
-	})
-	if idx == len(p.List) {
-		p.List = append(p.List, prefix)
-		p.LogProbs = append(p.LogProbs, logProb)
-	} else if p.List[idx].Compare(prefix) == 0 {
-		p.LogProbs[idx] = addProbabilitiesFloat(p.LogProbs[idx], logProb)
-	} else {
-		p.List = append(p.List, nil)
-		p.LogProbs = append(p.LogProbs, 0)
-		copy(p.List[idx+1:], p.List[idx:])
-		copy(p.LogProbs[idx+1:], p.LogProbs[idx:])
-		p.List[idx] = prefix
-		p.LogProbs[idx] = logProb
-	}
+func (e *extensionList) Len() int {
+	return len(e.Labels)
+}
+
+func (e *extensionList) Swap(i, j int) {
+	e.Labels[i], e.Labels[j] = e.Labels[j], e.Labels[i]
+	e.Probs[i], e.Probs[j] = e.Probs[j], e.Probs[i]
+}
+
+func (e *extensionList) Less(i, j int) bool {
+	return e.Probs[i] > e.Probs[j]
 }
