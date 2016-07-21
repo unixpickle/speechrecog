@@ -96,6 +96,7 @@
     var newCol = document.createElement('td');
     var audioTag = document.createElement('audio');
     audioTag.controls = true;
+    audioTag.preload = 'none';
     var sourceTag = document.createElement('source');
     sourceTag.src = '/recording.wav?id=' + encodeURIComponent(id);
     sourceTag.type = 'audio/x-wav';

@@ -16,7 +16,7 @@
           <td> {{- .Label -}} </td>
           {{if .File}}
           <td>
-            <audio controls>
+            <audio controls preload="none">
               <source src="/recording.wav?id={{.ID}}" type="audio/x-wav">
               Your browser does not support the audio element.
             </audio>
