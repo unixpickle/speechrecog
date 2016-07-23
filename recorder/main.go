@@ -36,7 +36,7 @@ func main() {
 
 	index, err := speechdata.LoadIndex(indexPath)
 	if err != nil {
-		index := &speechdata.Index{
+		index = &speechdata.Index{
 			DirPath: indexPath,
 		}
 		err = index.Save()
