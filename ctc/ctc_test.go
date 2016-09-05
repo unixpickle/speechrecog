@@ -48,8 +48,11 @@ func (_ logLikelihoodTestFunc) ApplyR(rv autofunc.RVector, in autofunc.RResult) 
 }
 
 func TestLogLikelihoodOutputs(t *testing.T) {
-	for i := 0; i < 10; i++ {
+	for i := 0; i < 11; i++ {
 		labelLen := 5 + rand.Intn(5)
+		if i == 10 {
+			labelLen = 0
+		}
 		seqLen := labelLen + rand.Intn(5)
 		label := make([]int, labelLen)
 		for i := range label {

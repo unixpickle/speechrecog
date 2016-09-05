@@ -77,6 +77,11 @@ func LogLikelihood(seq []autofunc.Result, label []int) autofunc.Result {
 		}
 	}
 
+	// May occur if the label is empty.
+	if len(positionProbs.Output()) == 1 {
+		return vectorEntry(positionProbs, -1)
+	}
+
 	return addProbabilities(vectorEntry(positionProbs, -1), vectorEntry(positionProbs, -2))
 }
 
@@ -142,6 +147,11 @@ func LogLikelihoodR(seq []autofunc.RResult, label []int) autofunc.RResult {
 			SeqIn:      inputRes,
 			Label:      label,
 		}
+	}
+
+	// May occur if the label is empty.
+	if len(positionProbs.Output()) == 1 {
+		return vectorEntryR(positionProbs, -1)
 	}
 
 	return addProbabilitiesR(vectorEntryR(positionProbs, -1), vectorEntryR(positionProbs, -2))
