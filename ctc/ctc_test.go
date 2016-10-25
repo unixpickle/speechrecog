@@ -73,16 +73,7 @@ func TestLogLikelihoodOutputs(t *testing.T) {
 	}
 }
 
-func TestLoglikelihoodGradients(t *testing.T) {
-	test := functest.FuncTest{
-		F:     logLikelihoodTestFunc{},
-		Vars:  gradTestInputs,
-		Input: gradTestInputs[0],
-	}
-	test.Run(t)
-}
-
-func TestLoglikelihoodRGradients(t *testing.T) {
+func TestLoglikelihoodChecks(t *testing.T) {
 	gradTestRVector := autofunc.RVector{}
 
 	for _, in := range gradTestInputs {
@@ -93,13 +84,13 @@ func TestLoglikelihoodRGradients(t *testing.T) {
 		gradTestRVector[in] = rVec
 	}
 
-	test := functest.RFuncTest{
+	test := functest.RFuncChecker{
 		F:     logLikelihoodTestFunc{},
 		Vars:  gradTestInputs,
 		Input: gradTestInputs[0],
 		RV:    gradTestRVector,
 	}
-	test.Run(t)
+	test.FullCheck(t)
 }
 
 func TestLoglikelihoodRConsistency(t *testing.T) {

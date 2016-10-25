@@ -5,9 +5,9 @@ import (
 	"sort"
 	"sync"
 
-	"github.com/unixpickle/autofunc"
+	"github.com/unixpickle/autofunc/seqfunc"
+	"github.com/unixpickle/num-analysis/linalg"
 	"github.com/unixpickle/sgd"
-	"github.com/unixpickle/weakai/rnn"
 )
 
 // TotalCost returns total CTC cost of a network on
@@ -16,7 +16,7 @@ import (
 // The maxGos argument specifies the maximum number
 // of goroutines to run batches on simultaneously.
 // If it is 0, GOMAXPROCS is used.
-func TotalCost(f rnn.SeqFunc, s sgd.SampleSet, maxBatch, maxGos int) float64 {
+func TotalCost(f seqfunc.RFunc, s sgd.SampleSet, maxBatch, maxGos int) float64 {
 	if maxGos == 0 {
 		maxGos = runtime.GOMAXPROCS(0)
 	}
@@ -57,14 +57,14 @@ func TotalCost(f rnn.SeqFunc, s sgd.SampleSet, maxBatch, maxGos int) float64 {
 	return sum
 }
 
-func costForBatch(f rnn.SeqFunc, s sgd.SampleSet) float64 {
-	inputVars := make([][]autofunc.Result, s.Len())
+func costForBatch(f seqfunc.RFunc, s sgd.SampleSet) float64 {
+	inputVecs := make([][]linalg.Vector, s.Len())
 	for i := 0; i < s.Len(); i++ {
 		sample := s.GetSample(i).(Sample)
-		inputVars[i] = varsToResults(sequenceToVars(sample.Input))
+		inputVecs[i] = sample.Input
 	}
 
-	outputs := f.BatchSeqs(inputVars)
+	outputs := f.ApplySeqs(seqfunc.ConstResult(inputVecs))
 
 	var sum float64
 	for i, outSeq := range outputs.OutputSeqs() {

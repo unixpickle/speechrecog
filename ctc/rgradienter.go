@@ -2,10 +2,10 @@ package ctc
 
 import (
 	"github.com/unixpickle/autofunc"
+	"github.com/unixpickle/autofunc/seqfunc"
 	"github.com/unixpickle/num-analysis/linalg"
 	"github.com/unixpickle/sgd"
 	"github.com/unixpickle/weakai/neuralnet"
-	"github.com/unixpickle/weakai/rnn"
 )
 
 // A Sample is a labeled training sample.
@@ -17,7 +17,7 @@ type Sample struct {
 // RGradienter computes gradients for sgd.SampleSets
 // full of Samples.
 type RGradienter struct {
-	SeqFunc rnn.SeqFunc
+	SeqFunc seqfunc.RFunc
 	Learner sgd.Learner
 
 	// MaxConcurrency is the maximum number of goroutines
@@ -60,13 +60,13 @@ func (r *RGradienter) makeHelper() *neuralnet.GradHelper {
 }
 
 func (r *RGradienter) compGrad(g autofunc.Gradient, s sgd.SampleSet) {
-	inputVars := make([][]autofunc.Result, s.Len())
+	inputVars := make([][]*autofunc.Variable, s.Len())
 	for i := 0; i < s.Len(); i++ {
 		sample := s.GetSample(i).(Sample)
-		inputVars[i] = varsToResults(sequenceToVars(sample.Input))
+		inputVars[i] = sequenceToVars(sample.Input)
 	}
 
-	outputs := r.SeqFunc.BatchSeqs(inputVars)
+	outputs := r.SeqFunc.ApplySeqs(seqfunc.VarResult(inputVars))
 
 	var upstream [][]linalg.Vector
 	for i, outSeq := range outputs.OutputSeqs() {
@@ -83,18 +83,18 @@ func (r *RGradienter) compGrad(g autofunc.Gradient, s sgd.SampleSet) {
 		upstream = append(upstream, upstreamSeq)
 	}
 
-	outputs.Gradient(upstream, g)
+	outputs.PropagateGradient(upstream, g)
 }
 
 func (r *RGradienter) compRGrad(rv autofunc.RVector, rg autofunc.RGradient,
 	g autofunc.Gradient, s sgd.SampleSet) {
-	inputVars := make([][]autofunc.RResult, s.Len())
+	inputVars := make([][]*autofunc.Variable, s.Len())
 	for i := 0; i < s.Len(); i++ {
 		sample := s.GetSample(i).(Sample)
-		inputVars[i] = rvarsToRResults(sequenceToRVars(sample.Input, nil))
+		inputVars[i] = sequenceToVars(sample.Input)
 	}
 
-	outputs := r.SeqFunc.BatchSeqsR(rv, inputVars)
+	outputs := r.SeqFunc.ApplySeqsR(rv, seqfunc.VarRResult(rv, inputVars))
 
 	var upstream [][]linalg.Vector
 	var upstreamR [][]linalg.Vector
@@ -117,7 +117,7 @@ func (r *RGradienter) compRGrad(rv autofunc.RVector, rg autofunc.RGradient,
 		upstreamR = append(upstreamR, upstreamSeqR)
 	}
 
-	outputs.RGradient(upstream, upstreamR, rg, g)
+	outputs.PropagateRGradient(upstream, upstreamR, rg, g)
 }
 
 func sequenceToVars(seq []linalg.Vector) []*autofunc.Variable {
